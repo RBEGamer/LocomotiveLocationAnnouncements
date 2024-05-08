@@ -6,20 +6,12 @@
 #include "AC101.h" //https://github.com/schreibfaul1/AC101
 // #include "ES8388.h"  // https://github.com/maditnerd/es8388
 #include "Audio.h" //https://github.com/schreibfaul1/ESP32-audioI2S
-#define CSV_PARSER_DONT_IMPORT_SD
-#include <CSV_Parser.h>
-
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include <TinyGPSPlus.h>
+#include <I2C_Anything.h>
 
 #include "helper.h"
 
-//
 #define START_SYSTEM_SOUND "/__start.mp3"
-#define GPS_SERIAL Serial1
-#define GPS_SERIAL_BAUD 4800
-#define GPS_POINT_TRIGGER_DISTANCE 0.5 // m
+
 // SPI GPIOs
 #define SD_CS 13
 #define SPI_MOSI 15
@@ -52,21 +44,43 @@ static AC101 dac;              // AC101
 const int DAC_VOLUME = 100;    // 0 - 100%;
 const int DAC_VOLUME_AMP = 21; // 0...100
 
-#define OLED_RESET 4
-Adafruit_SSD1306 display(OLED_RESET);
+
 Audio audio;
-TinyGPSPlus gps;
-CSV_Parser *cp = NULL;
 
-// CSV_Parser cp(/*format*/"ssff", /*has_header*/ true, /*delimiter*/ ','); // FORMAT string, has_header: true
-//  #####################################################################
 
-void set_anouncement(String _file, String _text)
+const byte MY_ADDRESS = 42;
+volatile boolean haveData = false;
+volatile long play_file_request;
+
+
+
+
+String last_anoucement = "";
+void play_file(String _file)
 {
+  if(last_anoucement == _file){
+    return;
+  }
+  last_anoucement = _file;
   audio.stopSong();
   audio.setFileLoop(false);
-  audio.connecttoFS(SD, ("/" + _file).c_str());
-  Serial.println(_text);
+  audio.connecttoFS(SD, ("" + _file).c_str());
+  Serial.println(_file);
+
+}
+
+void receiveEvent (int howMany)
+ {
+ Serial.print("receiveEvent : add = ");
+ if (howMany >= (sizeof play_file_request))
+   {
+   I2C_readAnything(play_file_request, &Wire1);
+   haveData = true;
+   }  // end if have enough data
+ }  // end of receiveEvent
+
+void requestEvent () {
+  Serial.print("RequestEvent : add = ");
 }
 
 void setup()
@@ -74,13 +88,8 @@ void setup()
   Serial.begin(115200);
   Serial.printf_P(PSTR("Free mem=%d\n"), ESP.getFreeHeap());
 
-  GPS_SERIAL.begin(GPS_SERIAL_BAUD);
-
-  // Wire.begin(GPIO_NUM_22, GPIO_NUM_21);
-  // display.begin(SSD1306_SWITCHCAPVCC, 0x3D);
-  // display.display();
-  // display.drawPixel(10, 10, WHITE);
-
+ 
+/*
   pinMode(SD_CS, OUTPUT);
   digitalWrite(SD_CS, HIGH);
   SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
@@ -106,88 +115,39 @@ void setup()
   audio.setVolume(int(DAC_VOLUME * 0.21)); // 0...21 so map it to 0-100%
 
   // PRINT SD CARD FILE INFO
-  // printDirectory(SD.open("/"), 0);
 
-  // READ CSV FILE IN
-  String csv_content = "";
-  File csvFile = SD.open("/announcements.csv", FILE_READ);
-  if (csvFile)
-  {
+#ifdef DEBUG
+  printDirectory(SD.open("/"), 0);
+#endif
 
-    Serial.println("FILE: announcements.csv LOADING");
-    while (csvFile.available())
-    {
-      csv_content += (char)csvFile.read();
-    }
-    csvFile.close();
-
-    Serial.println("FILE: announcements.csv OK");
-  }
-  else
-  {
-    Serial.println("FILE: announcements.csv LOADING FAILED");
-  }
-
+ */
+  Wire1.begin(MY_ADDRESS, GPIO_NUM_22, GPIO_NUM_21, 0);
+  Wire1.onReceive(receiveEvent);
+  Wire1.onRequest(requestEvent);
+/*
 #ifdef START_SYSTEM_SOUND
   if (SD.exists(START_SYSTEM_SOUND))
   {
-    set_anouncement(START_SYSTEM_SOUND, START_SYSTEM_SOUND);
+    play_file(START_SYSTEM_SOUND);
   }
 #endif
-
-  // PARSE CSV FILE
-  cp = new CSV_Parser(csv_content.c_str(), /*format*/ "sssf", true); // s = string, f = float true =headrr
-  cp->parseLeftover();
-  //  cp.print();
-  /*
-    const char **audiofile = (const char**)(*cp)["audiofile"];
-    const char **text = (const char**)(*cp)["text"];
-    const char **lat = (const char**)(*cp)["lat"];
-    const char **lon = (const char**)(*cp)["lon"];
-    for(int row = 0; row < cp->getRowsCount(); row++) {
-     Serial.print(audiofile[row]);
-     Serial.println(lat[row]);
-
-    }
-    Serial.println("----");
-   */
+*/
 }
+
+
 
 void loop()
 {
-
-  const char **audiofile = (const char **)(*cp)["audiofile"];
-  const char **text = (const char **)(*cp)["text"];
-  const char **lat = (const char **)(*cp)["lat"];
-  const char **lon = (const char **)(*cp)["lon"];
-
   // PLAY AUDIO
-  audio.loop();
-  // CHECK GPS
-  while (GPS_SERIAL.available())
-  {
-    gps.encode(GPS_SERIAL.read());
-  }
-  // CALC POSITION
-  if (gps.location.isValid())
-  {
+ // audio.loop();
 
-    for (int row = 0; row < cp->getRowsCount(); row++)
+  if (haveData)
     {
-      Serial.print(audiofile[row]);
-      //Serial.println(lat[row]);
-
-      const double point_to_check_lat = String(lat[row]).toDouble();
-      const double point_to_check_lon = String(lon[row]).toDouble();
-      const double distance_to_point = TinyGPSPlus::distanceBetween(gps.location.lat(), gps.location.lng(), point_to_check_lat, point_to_check_lon);
-      const double course_to_point = TinyGPSPlus::courseTo(gps.location.lat(), gps.location.lng(), point_to_check_lat, point_to_check_lon);
-
-      if (distance_to_point < GPS_POINT_TRIGGER_DISTANCE)
-      {
-        set_anouncement(audiofile[row], text[row]);
-      }
-    }
-  }
+    Serial.print ("Received play_file_request = ");
+    Serial.println (play_file_request);
+    play_file("/" + String(play_file_request) + ".mp3");
+    haveData = false;
+    }  // end if haveData
 }
 
 // optional
