@@ -15,12 +15,12 @@ const double GPS_POINT_NEAR = 10.0;
 const double GPS_POINT_TRIGGER_DISTANCE = 2.0;
 const String waypoint_list_filename = "POINTS.CSV"; //10 char lenght limit!!!! file on sd card needs to be uppercase!
 const byte SLAVE_ADDRESS = 42;
-const long SOUND_RESET_TIMEOUT = 20 * 1000; //sound can be replayed after x seconds
+const long SOUND_RESET_TIMEOUT = 10 * 1000; //sound can be replayed after x seconds
 
 
 LiquidCrystal_I2C lcd(0x27,16,2);  // set the LCD address to 0x27 for a 16 chars and 2 line display
 TinyGPSPlus gps;
-CSV_Parser cp(/*format*/ "sssf", true); // s = string, f = float true =headrr
+CSV_Parser cp(/*format*/ "ssss", true); // s = string, f = float true =headrr
 
 
 unsigned long time_now = 0;
@@ -136,25 +136,32 @@ void loop()
       // Serial.println(lat[row]);
       const double point_to_check_lat = String(lat[row]).toDouble();
       const double point_to_check_lon = String(lon[row]).toDouble();
-      Serial.println(point_to_check_lat, 7);
+     
       const double distance_to_point = TinyGPSPlus::distanceBetween(latitude, longitude, point_to_check_lat, point_to_check_lon);
       const double course_to_point = TinyGPSPlus::courseTo(latitude, longitude, point_to_check_lat, point_to_check_lon);
 
-      if(distance_to_point < GPS_POINT_NEAR){
-        Serial.print(audiofile[row]);
-        Serial.print(":");
-        Serial.println(distance_to_point, 7);
-      }else{
-        Serial.print(latitude, 7);
-        Serial.print("-");
-        Serial.println(longitude, 7);
-        Serial.println(distance_to_point, 7);
-      }
-      
 
+        Serial.print(latitude, 7);
+        Serial.print(":");
+        Serial.print(longitude, 7);
+        Serial.print(" => ");
+        Serial.print(point_to_check_lat, 7);
+        Serial.print(":");
+        Serial.print(point_to_check_lon, 7);
+        Serial.print(" d=");
+        Serial.print(distance_to_point, 7);
+        Serial.print(" h=");
+        Serial.println(course_to_point, 7);
+
+
+      // TRIGGER
       if (distance_to_point < GPS_POINT_TRIGGER_DISTANCE)
       {
         request_sound_playback(String(audiofile[row]).toInt(), String(text[row]));
+      }else if(distance_to_point < GPS_POINT_NEAR){
+        Serial.print(audiofile[row]);
+        Serial.print(":");
+        Serial.println(distance_to_point, 7);
       }
     }
   }
