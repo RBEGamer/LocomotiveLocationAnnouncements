@@ -146,7 +146,7 @@ void loop()
         Serial.println(distance_to_point, 7);
       }else{
         Serial.print(latitude, 7);
-        Serial.print(":");
+        Serial.print("-");
         Serial.println(longitude, 7);
         Serial.println(distance_to_point, 7);
       }
