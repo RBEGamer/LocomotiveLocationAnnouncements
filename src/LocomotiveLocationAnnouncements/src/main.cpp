@@ -44,21 +44,18 @@ static AC101 dac;              // AC101
 const int DAC_VOLUME = 100;    // 0 - 100%;
 const int DAC_VOLUME_AMP = 21; // 0...100
 
-
 Audio audio;
-
 
 const byte MY_ADDRESS = 42;
 volatile boolean haveData = false;
-volatile long play_file_request;
-
-
-
+volatile long volume;
+volatile long fileid;
 
 String last_anoucement = "";
 void play_file(String _file)
 {
-  if(last_anoucement == _file){
+  if (last_anoucement == _file)
+  {
     return;
   }
   last_anoucement = _file;
@@ -66,30 +63,22 @@ void play_file(String _file)
   audio.setFileLoop(false);
   audio.connecttoFS(SD, ("" + _file).c_str());
   Serial.println(_file);
-
 }
 
-void receiveEvent (int howMany)
- {
- Serial.print("receiveEvent : add = ");
- if (howMany >= (sizeof play_file_request))
-   {
-   I2C_readAnything(play_file_request, &Wire1);
-   haveData = true;
-   }  // end if have enough data
- }  // end of receiveEvent
-
-void requestEvent () {
-  Serial.print("RequestEvent : add = ");
-}
-
+void receiveEvent(int howMany)
+{
+  if (howMany >= (sizeof volume) + (sizeof fileid))
+  {
+    I2C_readAnything(volume, &Wire1);
+    I2C_readAnything(fileid, &Wire1);
+    haveData = true;
+  } // end if have enough data
+} // end of receiveEvent
 void setup()
 {
   Serial.begin(115200);
   Serial.printf_P(PSTR("Free mem=%d\n"), ESP.getFreeHeap());
 
- 
-/*
   pinMode(SD_CS, OUTPUT);
   digitalWrite(SD_CS, HIGH);
   SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
@@ -120,34 +109,35 @@ void setup()
   printDirectory(SD.open("/"), 0);
 #endif
 
- */
   Wire1.begin(MY_ADDRESS, GPIO_NUM_22, GPIO_NUM_21, 0);
   Wire1.onReceive(receiveEvent);
-  Wire1.onRequest(requestEvent);
-/*
+
 #ifdef START_SYSTEM_SOUND
   if (SD.exists(START_SYSTEM_SOUND))
   {
     play_file(START_SYSTEM_SOUND);
   }
 #endif
-*/
 }
-
-
 
 void loop()
 {
   // PLAY AUDIO
- // audio.loop();
+  audio.loop();
 
   if (haveData)
-    {
-    Serial.print ("Received play_file_request = ");
-    Serial.println (play_file_request);
-    play_file("/" + String(play_file_request) + ".mp3");
+  {
+    Serial.print("Received volume = ");
+    Serial.println(volume);
+    Serial.print("Received fileid = ");
+    Serial.println(fileid);
     haveData = false;
-    }  // end if haveData
+
+    if (fileid >= 0 && fileid < 1000)
+    {
+      play_file("/" + String(fileid) + ".mp3");
+    }
+  } // end if haveData
 }
 
 // optional
