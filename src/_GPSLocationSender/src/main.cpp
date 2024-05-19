@@ -14,7 +14,7 @@
 const double GPS_POINT_NEAR = 10.0;
 const double GPS_POINT_TRIGGER_DISTANCE = 2.0;
 const String waypoint_list_filename = "POINTS.CSV"; //10 char lenght limit!!!! file on sd card needs to be uppercase!
-const byte SLAVE_ADDRESS = 42; // I2C ADDRESS OF THE MUSIC PLAYER
+const byte SLAVE_ADDRESS = 42;
 const long SOUND_RESET_TIMEOUT = 10 * 1000; //sound can be replayed after x seconds
 
 
@@ -26,22 +26,9 @@ CSV_Parser cp(/*format*/ "ssss", true); // s = string, f = float true =headrr
 unsigned long time_now = 0;
 unsigned long time_last = 0;
 long last_requested_audiofile = 100;
-long last_upcomming_audiofile = 100;
-double last_upcomming_distance = -1.0;
 
-void display_upcomming_waypoint(long _audiofile_id, String _text = "",double _dist = 0.0){
-  if(_audiofile_id == last_upcomming_audiofile && abs(last_upcomming_distance - _dist) < GPS_POINT_TRIGGER_DISTANCE){
-    return;
-  }
-  _audiofile_id = last_upcomming_audiofile;
-  last_upcomming_distance = _dist;
 
-  lcd.clear();
-  lcd.setCursor(0,0);
-  lcd.print("NXT " + String(_dist) + " " + String(_audiofile_id));
-  lcd.setCursor(0,1);
-  lcd.print(_text);
-}
+
 void request_sound_playback(long _audiofile_id, String _text = "" ,long _volume = 100){
   if(_audiofile_id == last_requested_audiofile){
     return;
@@ -57,9 +44,8 @@ void request_sound_playback(long _audiofile_id, String _text = "" ,long _volume 
   I2C_writeAnything (_audiofile_id);
   Wire.endTransmission ();
 
-  
-  lcd.clear();
   lcd.setCursor(0,0);
+  lcd.clear();
   lcd.print(_text);
 }
 
@@ -124,7 +110,7 @@ void setup()
   }
  
   // INIT LCD
-  lcd.begin();
+  lcd.init();
   lcd.noCursor();
   lcd.backlight();
 }  // end of setup
@@ -140,9 +126,9 @@ void loop()
     // read GPS values
     const float latitude = GPS.latitude();
     const float longitude = GPS.longitude();
-    //const float altitude = GPS.altitude();
-    //const float speed = GPS.speed();
-    //const int satellites = GPS.satellites();
+    const float altitude = GPS.altitude();
+    const float speed = GPS.speed();
+    const int satellites = GPS.satellites();
 
     // NOW CHECK EACH WAYPOINT
     for (int row = 0; row < cp.getRowsCount(); row++)
@@ -173,7 +159,6 @@ void loop()
       {
         request_sound_playback(String(audiofile[row]).toInt(), String(text[row]));
       }else if(distance_to_point < GPS_POINT_NEAR){
-        display_upcomming_waypoint(String(audiofile[row]).toInt(),String(text[row]), distance_to_point);
         Serial.print(audiofile[row]);
         Serial.print(":");
         Serial.println(distance_to_point, 7);
@@ -187,7 +172,6 @@ void loop()
     last_requested_audiofile = -1;
     if(!GPS.available()){
       Serial.println("waiting for gps");
-      display_upcomming_waypoint(0, "Waiting for GPS", 100);
     }
   }
 
